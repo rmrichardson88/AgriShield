@@ -34,8 +34,16 @@ def load_data():
     nodes = pd.read_csv(NODES_CSV_URL)
 
     # Parse timestamps
-    readings[TIMESTAMP_COL] = pd.to_datetime(readings[TIMESTAMP_COL], errors="coerce", utc=True)
-    nodes[LAST_SEEN_COL]    = pd.to_datetime(nodes[LAST_SEEN_COL], errors="coerce", utc=True)
+    readings[TIMESTAMP_COL] = (
+        pd.to_datetime(readings[TIMESTAMP_COL], errors="coerce", utc=True)
+          .dt.tz_convert(None)   # drop timezone, keep UTC clock time
+    )
+    
+    nodes[LAST_SEEN_COL] = (
+        pd.to_datetime(nodes[LAST_SEEN_COL], errors="coerce", utc=True)
+          .dt.tz_convert(None)
+    )
+
 
     # Drop rows with invalid timestamps
     readings = readings.dropna(subset=[TIMESTAMP_COL])
