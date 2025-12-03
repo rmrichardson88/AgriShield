@@ -160,7 +160,8 @@ elif page == "Node Explorer":
         if any(
             key in c
             for key in [
-                "bme688_temperature_c",
+                "bme688_temperature_c" #we can adjust what fields we want to include by default, but given that they don't operate on the same scale...
+                ''',
                 "bme688_humidity_pct",
                 "bme688_pressure_hpa",
                 "anemometer_wind_speed_ms",
@@ -168,7 +169,7 @@ elif page == "Node Explorer":
                 "rain_gauge_rain_interval_mm",
                 "rain_gauge_rain_hourly_mm",
                 "battery_v",
-                "battery_pct",
+                "battery_pct",'''
             ]
         )
     ]
