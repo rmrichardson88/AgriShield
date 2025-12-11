@@ -121,8 +121,22 @@ if page == "Overview":
         map_df["lat"] = map_df[LAT_COL]
         map_df["lon"] = map_df[LON_COL]
 
-        # Ensure expected columns exist so tooltip placeholders don't break
-        for col in ["timestamp", "battery_v", "battery_pct"]:
+        # Columns we plan to reference from the last reading row
+        sensor_cols_for_tooltip = [
+            "timestamp",                     # last reading timestamp
+            "battery_v",
+            "battery_pct",
+            "bme688_temperature_c",
+            "bme688_humidity_pct",
+            "bme688_pressure_hpa",
+            "anemometer_wind_speed_ms",
+            "anemometer_wind_gust_ms",
+            "rain_gauge_rain_interval_mm",
+            "rain_gauge_rain_hourly_mm",
+        ]
+
+        # Ensure they exist so tooltip placeholders don't break
+        for col in sensor_cols_for_tooltip:
             if col not in map_df.columns:
                 map_df[col] = pd.NA
 
@@ -151,14 +165,20 @@ if page == "Overview":
             auto_highlight=True,
         )
 
-        # Tooltip shows the most recent reading (joined from readings tab)
+        # Tooltip shows the most recent *sensor reading* (joined from readings tab)
         tooltip = {
             "html": (
                 "<b>Node:</b> {node_id}<br/>"
                 "<b>Status:</b> {computed_status}<br/>"
-                "<b>Last seen (node):</b> {last_seen}<br/>"
-                "<b>Last reading ts:</b> {timestamp}<br/>"
-                "<b>Battery:</b> {battery_v} V ({battery_pct}%)"
+                "<b>Last reading:</b> {timestamp}<br/>"
+                "<b>Battery:</b> {battery_v} V ({battery_pct}%)<br/>"
+                "<b>Temp:</b> {bme688_temperature_c} °C<br/>"
+                "<b>Humidity:</b> {bme688_humidity_pct} %<br/>"
+                "<b>Pressure:</b> {bme688_pressure_hpa} hPa<br/>"
+                "<b>Wind speed:</b> {anemometer_wind_speed_ms} m/s<br/>"
+                "<b>Wind gust:</b> {anemometer_wind_gust_ms} m/s<br/>"
+                "<b>Rain (interval):</b> {rain_gauge_rain_interval_mm} mm<br/>"
+                "<b>Rain (hourly):</b> {rain_gauge_rain_hourly_mm} mm"
             ),
             "style": {
                 "backgroundColor": "rgba(0, 0, 0, 0.8)",
