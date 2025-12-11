@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import pydeck as pdk
 
 # ---------------- CONFIG: SHEET + COLUMNS ----------------
 
@@ -113,14 +114,70 @@ if page == "Overview":
     col2.metric("Online (recent last_seen)", int(online_nodes))
     col3.metric("Offline", int(offline_nodes))
 
-    st.subheader("Sensor Map")
+st.subheader("Sensor Map")
 
-    if LAT_COL in nodes.columns and LON_COL in nodes.columns:
-        map_df = nodes[[LAT_COL, LON_COL]].dropna()
-        map_df = map_df.rename(columns={LAT_COL: "lat", LON_COL: "lon"})
-        st.map(map_df)
+if LAT_COL in nodes.columns and LON_COL in nodes.columns:
+    # Use full node info (including last readings) for tooltips
+    map_df = nodes.dropna(subset=[LAT_COL, LON_COL]).copy()
+    map_df["lat"] = map_df[LAT_COL]
+    map_df["lon"] = map_df[LON_COL]
+
+    # Ensure expected columns exist so tooltip placeholders don't break
+    for col in ["timestamp", "battery_v", "battery_pct"]:
+        if col not in map_df.columns:
+            map_df[col] = pd.NA
+
+    # Compute a reasonable initial view (center of all nodes)
+    if not map_df.empty:
+        center_lat = float(map_df["lat"].mean())
+        center_lon = float(map_df["lon"].mean())
     else:
-        st.info("Latitude/longitude columns not found; adjust LAT_COL / LON_COL if needed.")
+        center_lat, center_lon = 39.0, -105.5  # fallback: rough CO center
+
+    view_state = pdk.ViewState(
+        latitude=center_lat,
+        longitude=center_lon,
+        zoom=7,
+        pitch=0,
+    )
+
+    # Scatterplot layer for node markers
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=map_df,
+        get_position="[lon, lat]",
+        get_radius=800,
+        get_fill_color=[0, 153, 255, 160],
+        pickable=True,             # REQUIRED for hover tooltips
+        auto_highlight=True,
+    )
+
+    # Tooltip shows the most recent reading (joined from readings tab)
+    tooltip = {
+        "html": (
+            "<b>Node:</b> {node_id}<br/>"
+            "<b>Status:</b> {computed_status}<br/>"
+            "<b>Last seen (node):</b> {last_seen}<br/>"
+            "<b>Last reading ts:</b> {timestamp}<br/>"
+            "<b>Battery:</b> {battery_v} V ({battery_pct}%)"
+        ),
+        "style": {
+            "backgroundColor": "rgba(0, 0, 0, 0.8)",
+            "color": "white",
+        },
+    }
+
+    deck = pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        map_style=None,  # let Streamlit theme choose the base map
+        tooltip=tooltip,
+    )
+
+    st.pydeck_chart(deck)
+
+else:
+    st.info("Latitude/longitude columns not found; adjust LAT_COL / LON_COL if needed.")
 
     st.subheader("Node table (with last sensor reading)")
 
