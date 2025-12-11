@@ -23,7 +23,7 @@ LAT_COL       = "latitude"
 LON_COL       = "longitude"
 STATUS_COL    = "status"   # e.g. "running"
 
-# how recent last_seen must be to be considered "online"... we will almost certainly want to modify this for production
+# how recent last_seen must be to be considered "online"
 ONLINE_THRESHOLD_MINUTES = 10
 
 
@@ -44,7 +44,6 @@ def load_data():
         pd.to_datetime(nodes[LAST_SEEN_COL], errors="coerce", utc=True)
           .dt.tz_convert(None)
     )
-
 
     # Drop rows with invalid timestamps
     readings = readings.dropna(subset=[TIMESTAMP_COL])
@@ -114,70 +113,70 @@ if page == "Overview":
     col2.metric("Online (recent last_seen)", int(online_nodes))
     col3.metric("Offline", int(offline_nodes))
 
-st.subheader("Sensor Map")
+    st.subheader("Sensor Map")
 
-if LAT_COL in nodes.columns and LON_COL in nodes.columns:
-    # Use full node info (including last readings) for tooltips
-    map_df = nodes.dropna(subset=[LAT_COL, LON_COL]).copy()
-    map_df["lat"] = map_df[LAT_COL]
-    map_df["lon"] = map_df[LON_COL]
+    if LAT_COL in nodes.columns and LON_COL in nodes.columns:
+        # Use full node info (including last readings) for tooltips
+        map_df = nodes.dropna(subset=[LAT_COL, LON_COL]).copy()
+        map_df["lat"] = map_df[LAT_COL]
+        map_df["lon"] = map_df[LON_COL]
 
-    # Ensure expected columns exist so tooltip placeholders don't break
-    for col in ["timestamp", "battery_v", "battery_pct"]:
-        if col not in map_df.columns:
-            map_df[col] = pd.NA
+        # Ensure expected columns exist so tooltip placeholders don't break
+        for col in ["timestamp", "battery_v", "battery_pct"]:
+            if col not in map_df.columns:
+                map_df[col] = pd.NA
 
-    # Compute a reasonable initial view (center of all nodes)
-    if not map_df.empty:
-        center_lat = float(map_df["lat"].mean())
-        center_lon = float(map_df["lon"].mean())
+        # Compute a reasonable initial view (center of all nodes)
+        if not map_df.empty:
+            center_lat = float(map_df["lat"].mean())
+            center_lon = float(map_df["lon"].mean())
+        else:
+            center_lat, center_lon = 35.21, -101.83  # fallback: Amarillo
+
+        view_state = pdk.ViewState(
+            latitude=center_lat,
+            longitude=center_lon,
+            zoom=7,
+            pitch=0,
+        )
+
+        # Scatterplot layer for node markers
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=map_df,
+            get_position="[lon, lat]",
+            get_radius=800,
+            get_fill_color=[0, 153, 255, 160],
+            pickable=True,             # REQUIRED for hover tooltips
+            auto_highlight=True,
+        )
+
+        # Tooltip shows the most recent reading (joined from readings tab)
+        tooltip = {
+            "html": (
+                "<b>Node:</b> {node_id}<br/>"
+                "<b>Status:</b> {computed_status}<br/>"
+                "<b>Last seen (node):</b> {last_seen}<br/>"
+                "<b>Last reading ts:</b> {timestamp}<br/>"
+                "<b>Battery:</b> {battery_v} V ({battery_pct}%)"
+            ),
+            "style": {
+                "backgroundColor": "rgba(0, 0, 0, 0.8)",
+                "color": "white",
+            },
+        }
+
+        deck = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            map_style=None,  # let Streamlit theme choose the base map
+            tooltip=tooltip,
+        )
+
+        st.pydeck_chart(deck)
+
     else:
-        center_lat, center_lon = 39.0, -105.5  # fallback: rough CO center
-
-    view_state = pdk.ViewState(
-        latitude=center_lat,
-        longitude=center_lon,
-        zoom=7,
-        pitch=0,
-    )
-
-    # Scatterplot layer for node markers
-    layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=map_df,
-        get_position="[lon, lat]",
-        get_radius=800,
-        get_fill_color=[0, 153, 255, 160],
-        pickable=True,             # REQUIRED for hover tooltips
-        auto_highlight=True,
-    )
-
-    # Tooltip shows the most recent reading (joined from readings tab)
-    tooltip = {
-        "html": (
-            "<b>Node:</b> {node_id}<br/>"
-            "<b>Status:</b> {computed_status}<br/>"
-            "<b>Last seen (node):</b> {last_seen}<br/>"
-            "<b>Last reading ts:</b> {timestamp}<br/>"
-            "<b>Battery:</b> {battery_v} V ({battery_pct}%)"
-        ),
-        "style": {
-            "backgroundColor": "rgba(0, 0, 0, 0.8)",
-            "color": "white",
-        },
-    }
-
-    deck = pdk.Deck(
-        layers=[layer],
-        initial_view_state=view_state,
-        map_style=None,  # let Streamlit theme choose the base map
-        tooltip=tooltip,
-    )
-
-    st.pydeck_chart(deck)
-
-else:
-    st.info("Latitude/longitude columns not found; adjust LAT_COL / LON_COL if needed.")
+        st.info("Latitude/longitude columns not found; adjust LAT_COL / LON_COL if needed.")
 
     st.subheader("Node table (with last sensor reading)")
 
@@ -220,10 +219,8 @@ elif page == "Node Explorer":
     numeric_cols_node = node_df.select_dtypes(include=[np.number]).columns.tolist()
     numeric_cols_node = [c for c in numeric_cols_node if c != NODE_ID_COL]
 
-    default_metrics = "battery_v"
-
-    if not default_metrics:
-        default_metrics = numeric_cols_node[:3]
+    # Use a list for default
+    default_metrics = ["battery_v"] if "battery_v" in numeric_cols_node else numeric_cols_node[:1]
 
     metrics_to_plot = st.multiselect(
         "Metrics to plot",
