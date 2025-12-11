@@ -145,7 +145,7 @@ if page == "Overview":
             center_lat = float(map_df["lat"].mean())
             center_lon = float(map_df["lon"].mean())
         else:
-            center_lat, center_lon = 39.0, -105.5  # fallback: rough CO center
+            center_lat, center_lon = 35.21, -101.83  # fallback: Amarillo
 
         view_state = pdk.ViewState(
             latitude=center_lat,
