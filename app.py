@@ -116,34 +116,12 @@ if page == "Overview":
     st.subheader("Sensor Map")
 
     if LAT_COL in nodes.columns and LON_COL in nodes.columns:
-        # 1) Base node info for the map (from NODES tab)
-        base_cols = [
-            NODE_ID_COL,
-            LAST_SEEN_COL,
-            "computed_status",
-            LAT_COL,
-            LON_COL,
-        ]
-        base_cols = [c for c in base_cols if c in nodes.columns]
-
-        map_df = nodes[base_cols].dropna(subset=[LAT_COL, LON_COL]).copy()
-
-        # 2) Last reading per node from READINGS tab (explicitly from readings CSV)
-        last_readings = (
-            readings.sort_values(TIMESTAMP_COL)
-            .groupby(NODE_ID_COL)
-            .tail(1)  # row with MAX timestamp per node
-            .copy()
-        )
-
-        # Merge last reading row onto node metadata
-        map_df = map_df.merge(last_readings, on=NODE_ID_COL, how="left")
-
-        # 3) Prepare columns for pydeck
+        # Use full node info (including last readings) for tooltips
+        map_df = nodes.dropna(subset=[LAT_COL, LON_COL]).copy()
         map_df["lat"] = map_df[LAT_COL]
         map_df["lon"] = map_df[LON_COL]
 
-        # Ensure tooltip fields exist even if readings don't have them yet
+        # Ensure expected columns exist so tooltip placeholders don't break
         for col in ["timestamp", "battery_v", "battery_pct"]:
             if col not in map_df.columns:
                 map_df[col] = pd.NA
@@ -173,7 +151,7 @@ if page == "Overview":
             auto_highlight=True,
         )
 
-        # Tooltip shows the MAX-timestamp row from READINGS for that node
+        # Tooltip shows the most recent reading (joined from readings tab)
         tooltip = {
             "html": (
                 "<b>Node:</b> {node_id}<br/>"
