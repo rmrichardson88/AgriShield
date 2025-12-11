@@ -163,24 +163,7 @@ elif page == "Node Explorer":
     numeric_cols_node = node_df.select_dtypes(include=[np.number]).columns.tolist()
     numeric_cols_node = [c for c in numeric_cols_node if c != NODE_ID_COL]
 
-    default_metrics = [
-        c for c in numeric_cols_node
-        if any(
-            key in c
-            for key in [
-                "bme688_temperature_c" #we can adjust what fields we want to include by default, but given that they don't operate on the same scale...
-                ''',
-                "bme688_humidity_pct",
-                "bme688_pressure_hpa",
-                "anemometer_wind_speed_ms",
-                "anemometer_wind_gust_ms",
-                "rain_gauge_rain_interval_mm",
-                "rain_gauge_rain_hourly_mm",
-                "battery_v",
-                "battery_pct",'''
-            ]
-        )
-    ]
+    default_metrics = "battery_v"
 
     if not default_metrics:
         default_metrics = numeric_cols_node[:3]
