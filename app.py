@@ -117,32 +117,35 @@ def load_data():
 
 def compute_online_status(nodes_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Online/offline relative to current time:
+    Online/offline relative to current time in UTC:
       online if last_seen >= (now_utc - threshold)
 
-    Robust to last_seen being string, tz-aware, or tz-naive.
+    Always compares tz-aware UTC to tz-aware UTC (avoids pandas invalid comparison errors).
     """
     if LAST_SEEN_COL not in nodes_df.columns:
         nodes_df["computed_status"] = "unknown"
         return nodes_df
 
-    # Force last_seen to a consistent dtype: naive UTC datetime64[ns]
-    last_seen_utc_naive = (
-        pd.to_datetime(nodes_df[LAST_SEEN_COL], errors="coerce", utc=True)
-          .dt.tz_convert(None)
-    )
-    nodes_df[LAST_SEEN_COL] = last_seen_utc_naive  # keep downstream consistent
+    # Parse as tz-aware UTC no matter what the incoming dtype is (string/naive/tz-aware)
+    last_seen_utc = pd.to_datetime(nodes_df[LAST_SEEN_COL], errors="coerce", utc=True)
 
-    now_utc_naive = pd.Timestamp.utcnow()  # naive UTC
-    cutoff = now_utc_naive - pd.Timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+    # Current time as tz-aware UTC
+    now_utc = pd.Timestamp.now(tz="UTC")
+    cutoff = now_utc - pd.Timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+
+    # Optional: clamp future timestamps (clock skew) so they don't distort status
+    last_seen_effective = last_seen_utc.mask(last_seen_utc > now_utc, now_utc)
 
     nodes_df["computed_status"] = np.where(
-        last_seen_utc_naive >= cutoff,
+        last_seen_effective >= cutoff,
         "online",
-        "offline"
+        "offline",
     )
-    return nodes_df
 
+    # Keep your existing convention downstream: store last_seen as naive UTC
+    nodes_df[LAST_SEEN_COL] = last_seen_utc.dt.tz_convert(None)
+
+    return nodes_df
 
 # ---------------- STREAMLIT LAYOUT ----------------
 
