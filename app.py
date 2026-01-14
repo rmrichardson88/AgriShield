@@ -117,24 +117,27 @@ def load_data():
 
 def compute_online_status(nodes_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Online/offline relative to current time (not max(last_seen)):
+    Online/offline relative to current time:
       online if last_seen >= (now_utc - threshold)
 
-    Defensive handling: if last_seen is in the future due to clock skew,
-    clamp to now for status computation so a future timestamp doesn't distort logic.
+    Robust to last_seen being string, tz-aware, or tz-naive.
     """
     if LAST_SEEN_COL not in nodes_df.columns:
         nodes_df["computed_status"] = "unknown"
         return nodes_df
 
-    now_utc_naive = pd.Timestamp.utcnow()  # naive UTC, matches our parsed timestamps
+    # Force last_seen to a consistent dtype: naive UTC datetime64[ns]
+    last_seen_utc_naive = (
+        pd.to_datetime(nodes_df[LAST_SEEN_COL], errors="coerce", utc=True)
+          .dt.tz_convert(None)
+    )
+    nodes_df[LAST_SEEN_COL] = last_seen_utc_naive  # keep downstream consistent
+
+    now_utc_naive = pd.Timestamp.utcnow()  # naive UTC
     cutoff = now_utc_naive - pd.Timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
 
-    # clamp future last_seen to now for status calculation only
-    last_seen_effective = nodes_df[LAST_SEEN_COL].where(nodes_df[LAST_SEEN_COL] <= now_utc_naive, now_utc_naive)
-
     nodes_df["computed_status"] = np.where(
-        last_seen_effective >= cutoff,
+        last_seen_utc_naive >= cutoff,
         "online",
         "offline"
     )
