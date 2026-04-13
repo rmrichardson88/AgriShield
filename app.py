@@ -198,6 +198,10 @@ def load_data():
 def compute_online_status(nodes_df: pd.DataFrame) -> pd.DataFrame:
     """
     Prefer minutes_since_active when available; otherwise fall back to last_seen.
+    Online/offline relative to current time in UTC:
+      online if last_seen >= (now_utc - threshold)
+
+    Always compares tz-aware UTC to tz-aware UTC (avoids pandas invalid comparison errors).
     """
     computed_status = pd.Series("unknown", index=nodes_df.index, dtype="string")
 
@@ -230,7 +234,26 @@ def compute_online_status(nodes_df: pd.DataFrame) -> pd.DataFrame:
 
     nodes_df["computed_status"] = computed_status
     return nodes_df
+    # Parse as tz-aware UTC no matter what the incoming dtype is (string/naive/tz-aware)
+    last_seen_utc = pd.to_datetime(nodes_df[LAST_SEEN_COL], errors="coerce", utc=True)
 
+    # Current time as tz-aware UTC
+    now_utc = pd.Timestamp.now(tz="UTC")
+    cutoff = now_utc - pd.Timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+
+    # Optional: clamp future timestamps (clock skew) so they don't distort status
+    last_seen_effective = last_seen_utc.mask(last_seen_utc > now_utc, now_utc)
+
+    nodes_df["computed_status"] = np.where(
+        last_seen_effective >= cutoff,
+        "online",
+        "offline",
+    )
+
+    # Keep your existing convention downstream: store last_seen as naive UTC
+    nodes_df[LAST_SEEN_COL] = last_seen_utc.dt.tz_convert(None)
+
+    return nodes_df
 
 # ---------------- STREAMLIT LAYOUT ----------------
 
